@@ -1,0 +1,276 @@
+[
+    {
+        "id": "a7681ec07f08cd3e",
+        "type": "tab",
+        "label": "Flow 7",
+        "disabled": false,
+        "info": "",
+        "env": []
+    },
+    {
+        "id": "4ec22c0d8c0f7d5d",
+        "type": "mqtt in",
+        "z": "a7681ec07f08cd3e",
+        "name": "",
+        "topic": "owntracks/sherrymegally/a15",
+        "qos": "0",
+        "datatype": "auto-detect",
+        "broker": "c7cc18de996064fd",
+        "nl": false,
+        "rap": true,
+        "rh": 0,
+        "inputs": 0,
+        "x": 280,
+        "y": 240,
+        "wires": [
+            [
+                "d6bd2bd7318a2311",
+                "5ee9197a62ff513e"
+            ]
+        ]
+    },
+    {
+        "id": "c81e735e5510bb30",
+        "type": "ui_worldmap",
+        "z": "a7681ec07f08cd3e",
+        "group": "",
+        "order": 7,
+        "width": 0,
+        "height": 0,
+        "name": "",
+        "lat": "",
+        "lon": "",
+        "zoom": "",
+        "layer": "OSMG",
+        "cluster": "",
+        "maxage": "",
+        "usermenu": "hide",
+        "layers": "hide",
+        "panit": "false",
+        "panlock": "false",
+        "zoomlock": "false",
+        "hiderightclick": "true",
+        "coords": "none",
+        "showgrid": "false",
+        "showruler": "false",
+        "allowFileDrop": "false",
+        "path": "/worldmap",
+        "overlist": "DR,CO,RA,DN,HM",
+        "maplist": "OSMG,OSMC,EsriC,EsriS,EsriT,EsriDG,UKOS",
+        "mapname": "",
+        "mapurl": "",
+        "mapopt": "",
+        "mapwms": false,
+        "x": 760,
+        "y": 240,
+        "wires": []
+    },
+    {
+        "id": "d6bd2bd7318a2311",
+        "type": "function",
+        "z": "a7681ec07f08cd3e",
+        "name": "function 6",
+        "func": "// =====================================================\n// LOCATION + MOVING SHIPMENT ROUTE\n// =====================================================\n\n\n// =====================================================\n// FIXED START LOCATION\n// =====================================================\n\nconst START_LAT = 28.3262438;\nconst START_LON = 30.7054304;\n\n\n// =====================================================\n// FIXED DESTINATION\n// =====================================================\n\nconst DEST_LAT = 28.3262814;\nconst DEST_LON = 30.705432;\n\n\n// =====================================================\n// ARRIVAL RADIUS\n// =====================================================\n\nconst RADIUS = 7; // meters\n\n\n// =====================================================\n// GET GPS DATA\n// =====================================================\n\nlet data = msg.payload;\n\nlet lat = Number(data.lat);\nlet lon = Number(data.lon);\n\nif (!Number.isFinite(lat) || !Number.isFinite(lon)) {\n    node.warn(\"Invalid GPS coordinates\");\n    return null;\n}\n\n\n// =====================================================\n// DISTANCE CALCULATION\n// =====================================================\n\nfunction distanceInMeters(lat1, lon1, lat2, lon2) {\n\n    const EARTH_RADIUS = 6371000;\n\n    const dLat =\n        (lat2 - lat1) * Math.PI / 180;\n\n    const dLon =\n        (lon2 - lon1) * Math.PI / 180;\n\n    const a =\n        Math.sin(dLat / 2) *\n        Math.sin(dLat / 2) +\n\n        Math.cos(lat1 * Math.PI / 180) *\n        Math.cos(lat2 * Math.PI / 180) *\n\n        Math.sin(dLon / 2) *\n        Math.sin(dLon / 2);\n\n    const c =\n        2 * Math.atan2(\n            Math.sqrt(a),\n            Math.sqrt(1 - a)\n        );\n\n    return EARTH_RADIUS * c;\n}\n\n\n// =====================================================\n// DISTANCE TO DESTINATION\n// =====================================================\n\nlet distance = distanceInMeters(\n    lat,\n    lon,\n    DEST_LAT,\n    DEST_LON\n);\n\n\n// =====================================================\n// ARRIVAL STATUS WITH LOCK\n// =====================================================\n\nlet previousStatus = flow.get(\"shipmentStatus\") || \"IN_TRANSIT\";\n\nlet status;\n\nif (previousStatus === \"ARRIVED\") {\n\n    // Once arrived, stay ARRIVED.\n    status = \"ARRIVED\";\n\n} else if (distance <= RADIUS) {\n\n    // First time entering the destination radius.\n    status = \"ARRIVED\";\n\n} else {\n\n    status = \"IN_TRANSIT\";\n}\n\n// =====================================================\n// GET EXISTING SHIPMENT ROUTE\n// =====================================================\n\nlet route = flow.get(\"shipmentRoute\");\n\n\n// =====================================================\n// INITIALIZE ROUTE\n// =====================================================\n\n// IMPORTANT:\n// The route starts with the START point.\n// This does NOT create a line to DESTINATION.\n// The destination is only a separate marker.\n\nif (!route || !Array.isArray(route) || route.length === 0) {\n\n    route = [\n        [\n            START_LAT,\n            START_LON\n        ]\n    ];\n}\n\n\n// =====================================================\n// ADD CURRENT SHIPMENT LOCATION\n// =====================================================\n\n// Add the current location only if it changed.\n\nlet lastPoint = route[route.length - 1];\n\nif (\n    !lastPoint ||\n    Math.abs(lastPoint[0] - lat) > 0.000001 ||\n    Math.abs(lastPoint[1] - lon) > 0.000001\n) {\n\n    route.push([\n        lat,\n        lon\n    ]);\n}\n\n\n// =====================================================\n// SAVE ROUTE\n// =====================================================\n\n// NEVER CLEAR THE ROUTE.\n// It remains after ARRIVED.\n\nflow.set(\n    \"shipmentRoute\",\n    route\n);\n\n\n// =====================================================\n// FIXED START MARKER\n// =====================================================\n\nlet startPoint = {\n\n    name: \"START\",\n\n    lat: START_LAT,\n\n    lon: START_LON,\n\n    icon: \"flag\",\n\n    layer: \"Fixed Points\"\n\n};\n\n\n// =====================================================\n// FIXED DESTINATION MARKER\n// =====================================================\n\nlet destinationPoint = {\n\n    name: \"DESTINATION\",\n\n    lat: DEST_LAT,\n\n    lon: DEST_LON,\n\n    icon: \"flag\",\n\n    layer: \"Fixed Points\"\n\n};\n\n\n// =====================================================\n// MOVING SHIPMENT\n// =====================================================\n\nlet truck = {\n\n    name: \"Shipment 001\",\n    \n    lat: lat,\n\n    lon: lon,\n\n    icon: \"truck\",\n\n    layer: \"Shipment\"\n\n};\n\n\n// =====================================================\n// ACTUAL SHIPMENT ROUTE\n// =====================================================\n\n// This line contains ONLY the points where\n// the shipment actually moved.\n\nlet routeLine = {\n\n    name: \"Shipment Route\",\n\n    line: route,\n\n    layer: \"Route\"\n\n};\n\n\n// =====================================================\n// WORLD MAP OUTPUT\n// =====================================================\n\nlet mapMsg = {\n\n    payload: [\n\n        startPoint,\n\n        destinationPoint,\n\n        truck,\n\n        routeLine\n\n    ]\n\n};\n\n\n// =====================================================\n// GAUGE OUTPUT\n// =====================================================\n\nlet gaugeMsg = {\n\n    payload: Number(\n        distance.toFixed(2)\n    ),\n\n    status: status,\n\n    latitude: lat,\n\n    longitude: lon\n\n};\n\n\n// =====================================================\n// TEXT OUTPUT\n// =====================================================\n\nlet textMsg = {\n\n    payload:\n        status +\n        \" | Distance: \" +\n        distance.toFixed(2) +\n        \" m\"\n\n};\n\n\n// =====================================================\n// NODE STATUS\n// =====================================================\n\nnode.status({\n\n    fill:\n        status === \"ARRIVED\"\n            ? \"green\"\n            : \"blue\",\n\n    shape: \"dot\",\n\n    text:\n        status +\n        \" | \" +\n        distance.toFixed(1) +\n        \" m\"\n\n});\n\n\n// =====================================================\n// ARRIVAL MESSAGE\n// =====================================================\n\nif (status === \"ARRIVED\") {\n\n    node.warn(\n        \"PACKAGE ARRIVED! Distance = \" +\n        distance.toFixed(2) +\n        \" meters\"\n    );\n\n}\n\n\n// =====================================================\n// SAVE CURRENT DATA\n// =====================================================\n\nflow.set(\n    \"shipmentStatus\",\n    status\n);\n\nflow.set(\n    \"shipmentDistance\",\n    distance\n);\n\nflow.set(\n    \"shipmentLatitude\",\n    lat\n);\n\nflow.set(\n    \"shipmentLongitude\",\n    lon\n);\n\n\n// =====================================================\n// RETURN 3 OUTPUTS\n// =====================================================\n\n// Output 1 → Worldmap\n// Output 2 → Gauge\n// Output 3 → Text\n\nreturn [\n\n    mapMsg,\n\n    gaugeMsg,\n\n    textMsg\n\n];",
+        "outputs": 3,
+        "timeout": 0,
+        "noerr": 0,
+        "initialize": "",
+        "finalize": "",
+        "libs": [],
+        "x": 520,
+        "y": 280,
+        "wires": [
+            [
+                "c81e735e5510bb30"
+            ],
+            [
+                "7720d644e1ed6b79"
+            ],
+            []
+        ]
+    },
+    {
+        "id": "7720d644e1ed6b79",
+        "type": "ui_gauge",
+        "z": "a7681ec07f08cd3e",
+        "name": "Distance",
+        "group": "b7ab54859476c5c5",
+        "order": 10,
+        "width": 0,
+        "height": 0,
+        "gtype": "gage",
+        "title": "Distance to Destination",
+        "label": "m",
+        "format": "{{msg.payload}}",
+        "min": 0,
+        "max": "20",
+        "colors": [
+            "#00b500",
+            "#e6e600",
+            "#ca3838"
+        ],
+        "seg1": "",
+        "seg2": "",
+        "diff": false,
+        "className": "",
+        "x": 760,
+        "y": 300,
+        "wires": []
+    },
+    {
+        "id": "d9af67fc4877a1ac",
+        "type": "inject",
+        "z": "a7681ec07f08cd3e",
+        "name": "",
+        "props": [
+            {
+                "p": "payload"
+            },
+            {
+                "p": "topic",
+                "vt": "str"
+            }
+        ],
+        "repeat": "",
+        "crontab": "",
+        "once": false,
+        "onceDelay": 0.1,
+        "topic": "",
+        "payload": "{     \"lat\": 28.3263359,     \"lon\": 30.7054291 }",
+        "payloadType": "json",
+        "x": 290,
+        "y": 300,
+        "wires": [
+            [
+                "d6bd2bd7318a2311"
+            ]
+        ]
+    },
+    {
+        "id": "b7b4acdd404eb2d4",
+        "type": "inject",
+        "z": "a7681ec07f08cd3e",
+        "name": "",
+        "props": [
+            {
+                "p": "payload"
+            },
+            {
+                "p": "topic",
+                "vt": "str"
+            }
+        ],
+        "repeat": "",
+        "crontab": "",
+        "once": false,
+        "onceDelay": 0.1,
+        "topic": "",
+        "payload": "{     \"lat\": 28.3263359,     \"lon\": 30.7054291 }",
+        "payloadType": "json",
+        "x": 270,
+        "y": 360,
+        "wires": [
+            [
+                "d6bd2bd7318a2311"
+            ]
+        ]
+    },
+    {
+        "id": "5ee9197a62ff513e",
+        "type": "debug",
+        "z": "a7681ec07f08cd3e",
+        "name": "debug 2",
+        "active": true,
+        "tosidebar": true,
+        "console": false,
+        "tostatus": false,
+        "complete": "payload",
+        "targetType": "msg",
+        "statusVal": "",
+        "statusType": "auto",
+        "x": 560,
+        "y": 140,
+        "wires": []
+    },
+    {
+        "id": "d8335c81a0e89901",
+        "type": "ui_text",
+        "z": "a7681ec07f08cd3e",
+        "group": "",
+        "order": 5,
+        "width": 0,
+        "height": 0,
+        "name": "",
+        "label": "Location Status",
+        "format": "{{msg.payload}}",
+        "layout": "row-left",
+        "className": "",
+        "style": false,
+        "font": "",
+        "fontSize": 16,
+        "color": "#000000",
+        "x": 740,
+        "y": 380,
+        "wires": []
+    },
+    {
+        "id": "c7cc18de996064fd",
+        "type": "mqtt-broker",
+        "name": "mqtt",
+        "broker": "f7559e3e38f94eb7bfc2906b6be26633.s1.eu.hivemq.cloud",
+        "port": "8883",
+        "tls": "",
+        "clientid": "sherry",
+        "autoConnect": true,
+        "usetls": true,
+        "protocolVersion": 4,
+        "keepalive": 60,
+        "cleansession": true,
+        "autoUnsubscribe": true,
+        "birthTopic": "",
+        "birthQos": "0",
+        "birthRetain": "false",
+        "birthPayload": "",
+        "birthMsg": {},
+        "closeTopic": "",
+        "closeQos": "0",
+        "closeRetain": "false",
+        "closePayload": "",
+        "closeMsg": {},
+        "willTopic": "",
+        "willQos": "0",
+        "willRetain": "false",
+        "willPayload": "",
+        "willMsg": {},
+        "userProps": "",
+        "sessionExpiry": ""
+    },
+    {
+        "id": "b7ab54859476c5c5",
+        "type": "ui_group",
+        "name": "Dashboard",
+        "tab": "4bc55283ec21ff50",
+        "order": 1,
+        "disp": true,
+        "width": "8",
+        "collapse": false,
+        "className": ""
+    },
+    {
+        "id": "4bc55283ec21ff50",
+        "type": "ui_tab",
+        "name": "Home",
+        "icon": "dashboard",
+        "disabled": false,
+        "hidden": false
+    },
+    {
+        "id": "c55c9d0748600b01",
+        "type": "global-config",
+        "env": [],
+        "modules": {
+            "node-red-contrib-web-worldmap": "5.8.1",
+            "node-red-dashboard": "3.6.6"
+        }
+    }
+]
