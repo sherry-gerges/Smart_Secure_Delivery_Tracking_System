@@ -24,8 +24,8 @@ LED_PIN = 23
 MQTT_HOST = "f7559e3e38f94eb7bfc2906b6be26633.s1.eu.hivemq.cloud"
 MQTT_PORT = 8883
 
-MQTT_USERNAME = "sherrymegally"
-MQTT_PASSWORD = ""
+MQTT_USERNAME = "username"
+MQTT_PASSWORD = "password"
 
 # ============================================================
 #                    MQTT TOPICS
