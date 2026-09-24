@@ -1,4 +1,4 @@
-# Smart Secure Delivery Tracking System
+# 📦 Smart Secure Delivery Tracking System
 
 An IoT-based smart delivery system designed to secure package loading, transportation, and delivery using **Raspberry Pi, NFC, IR sensing, MQTT, Node-RED, GPS tracking, Telegram, Gmail, and a web dashboard**.
 
@@ -6,7 +6,7 @@ The system verifies authorized access, detects whether the package has been load
 
 ---
 
-## 1. Project Overview
+## 1. 📋 Project Overview
 
 The system automates the delivery process through a Raspberry Pi connected to:
 
@@ -43,7 +43,7 @@ Package delivered
 
 ---
 
-## 2. System Components
+## 2. 🔧 System Components
 
 | Component    | Purpose                         |
 | ------------ | ------------------------------- |
@@ -61,7 +61,7 @@ Package delivered
 
 ---
 
-## 3. Hardware Connections
+## 3. 🔌 Hardware Connections
 
 ### Raspberry Pi
 
@@ -97,7 +97,7 @@ req_pin = DigitalInOut(board.D5)
 
 ---
 
-## 4. NFC Cards
+## 4. 📳 NFC Cards
 
 Two NFC cards are used by the system.
 
@@ -110,7 +110,7 @@ The customer does not use an NFC card in the current implementation.
 
 ---
 
-## 5. Raspberry Pi Software
+## 5. 🐍 Raspberry Pi Software
 
 The main program is:
 
@@ -137,7 +137,7 @@ pip install -r requirements.txt
 
 ---
 
-## 6. MQTT Communication
+## 6. 📡 MQTT Communication
 
 The system uses **HiveMQ Cloud** over secure MQTT/TLS.
 
@@ -155,7 +155,7 @@ Credentials are intentionally not included in this repository.
 
 ---
 
-## 7. MQTT Topics
+## 7. 🔗 MQTT Topics
 
 | Topic                       | Direction               | Purpose                 |
 | --------------------------- | ----------------------- | ----------------------- |
@@ -167,7 +167,7 @@ Credentials are intentionally not included in this repository.
 
 ---
 
-## 8. Delivery States
+## 8. 🔄 Delivery States
 
 The Raspberry Pi uses the following states:
 
@@ -191,7 +191,7 @@ SECURITY_ALERT
 
 ---
 
-## 9. Delivery Process
+## 9. 🚚 Delivery Process
 
 ### Step 1 — Driver Authentication
 
@@ -336,7 +336,7 @@ DELIVERED
 
 ---
 
-## 10. Security Handling
+## 10. 🔐 Security Handling
 
 If an unauthorized NFC card is detected, the system publishes:
 
@@ -356,7 +356,7 @@ The same mechanism is used if the package is not detected during the package-loa
 
 ---
 
-## 11. Node-RED Architecture
+## 11. 🔄 Node-RED Architecture
 
 The Node-RED implementation is divided into two main flows.
 
@@ -397,7 +397,7 @@ Location Function
 
 ---
 
-## 12. Node-RED Dashboard
+## 12. 📊 Node-RED Dashboard
 
 The dashboard displays:
 
@@ -415,7 +415,7 @@ The dashboard displays:
 
 ---
 
-## 13. Worldmap
+## 13. 🗺️ Worldmap
 
 The Worldmap contains three types of objects:
 
@@ -446,7 +446,7 @@ The route remains visible after the shipment reaches the destination.
 
 ---
 
-## 14. Notifications
+## 14. 🔔 Notifications
 
 ### Telegram
 
@@ -465,7 +465,7 @@ Gmail is used for security-related events:
 
 ---
 
-## 15. Node-RED Packages
+## 15. 📦 Node-RED Packages
 
 The Node-RED project uses:
 
@@ -478,7 +478,7 @@ The Node-RED project uses:
 
 ---
 
-## 16. Repository Structure
+## 16. 📁 Repository Structure
 
 ```text
 Smart-Secure-Delivery-Tracking-System/
@@ -500,7 +500,7 @@ Smart-Secure-Delivery-Tracking-System/
 
 ---
 
-## 17. Security Notes
+## 17. 🔐 Security Notes
 
 Sensitive credentials are intentionally excluded from the repository.
 
@@ -518,7 +518,7 @@ Credentials should be configured locally on the Raspberry Pi and Node-RED enviro
 
 ---
 
-## 18. Project Features
+## 18. ✨ Project Features
 
 * NFC-based driver authentication
 * NFC-based package identification
@@ -540,7 +540,7 @@ Credentials should be configured locally on the Raspberry Pi and Node-RED enviro
 
 ---
 
-## 19. Technologies
+## 19. 💻 Technologies
 
 ```text
 Python
@@ -558,6 +558,6 @@ Gmail
 
 ---
 
-## 20. Author
+## 20. 👩‍💻 Author
 
 **Sherry Gerges**
