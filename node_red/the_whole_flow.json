@@ -1,0 +1,661 @@
+[
+    {
+        "id": "dae92552c0cc9cde",
+        "type": "tab",
+        "label": "Flow 6",
+        "disabled": false,
+        "info": "",
+        "env": []
+    },
+    {
+        "id": "3b04c873395201de",
+        "type": "mqtt in",
+        "z": "dae92552c0cc9cde",
+        "name": "Identify Package",
+        "topic": "delivery/package/nfc",
+        "qos": "0",
+        "datatype": "utf8",
+        "broker": "c7cc18de996064fd",
+        "nl": false,
+        "rap": true,
+        "rh": 0,
+        "inputs": 0,
+        "x": 260,
+        "y": 160,
+        "wires": [
+            [
+                "463396bfb6c89459"
+            ]
+        ]
+    },
+    {
+        "id": "8b4e0f03d442a934",
+        "type": "mqtt in",
+        "z": "dae92552c0cc9cde",
+        "name": "Package Presence",
+        "topic": "delivery/package/presence",
+        "qos": "0",
+        "datatype": "utf8",
+        "broker": "c7cc18de996064fd",
+        "nl": false,
+        "rap": true,
+        "rh": 0,
+        "inputs": 0,
+        "x": 270,
+        "y": 240,
+        "wires": [
+            [
+                "33910e200a01e640"
+            ]
+        ]
+    },
+    {
+        "id": "9d0d35591d464bb6",
+        "type": "mqtt in",
+        "z": "dae92552c0cc9cde",
+        "name": "Delivery Events",
+        "topic": "delivery/events",
+        "qos": "0",
+        "datatype": "utf8",
+        "broker": "c7cc18de996064fd",
+        "nl": false,
+        "rap": true,
+        "rh": 0,
+        "inputs": 0,
+        "x": 260,
+        "y": 340,
+        "wires": [
+            [
+                "2fd1c5e6893333ba"
+            ]
+        ]
+    },
+    {
+        "id": "463396bfb6c89459",
+        "type": "function",
+        "z": "dae92552c0cc9cde",
+        "name": "Identify Package",
+        "func": "let uid = msg.payload.toString().trim();\n\nlet type = \"UNKNOWN CARD\";\n\nif (uid === \"7378BD02\") {\n    type = \"PACKAGE CARD\";\n}\nelse if (uid === \"B359B834\") {\n    type = \"DRIVER CARD\";\n}\n\nflow.set(\"lastNFC\", uid);\n\nmsg.payload = uid + \" - \" + type;\n\nreturn msg;",
+        "outputs": 1,
+        "timeout": 0,
+        "noerr": 0,
+        "initialize": "",
+        "finalize": "",
+        "libs": [],
+        "x": 490,
+        "y": 160,
+        "wires": [
+            [
+                "3113894241b45c7e"
+            ]
+        ]
+    },
+    {
+        "id": "33910e200a01e640",
+        "type": "function",
+        "z": "dae92552c0cc9cde",
+        "name": "Package Presence",
+        "func": "let value = msg.payload.toString().trim();\n\nlet present = value === \"true\";\n\nflow.set(\"packagePresent\", present);\n\nmsg.payload = present ? \"PACKAGE PRESENT\" : \"PACKAGE MISSing\";\n\nreturn msg;",
+        "outputs": 1,
+        "timeout": 0,
+        "noerr": 0,
+        "initialize": "",
+        "finalize": "",
+        "libs": [],
+        "x": 490,
+        "y": 240,
+        "wires": [
+            [
+                "55439231a5670d74"
+            ]
+        ]
+    },
+    {
+        "id": "2fd1c5e6893333ba",
+        "type": "function",
+        "z": "dae92552c0cc9cde",
+        "name": "Delivery State Manager",
+        "func": "// ==========================================\n// DELIVERY STATE MANAGER\n// ==========================================\n\n// Current state\nlet status = global.get(\"packageStatus\") || \"WAITING_FOR_DRIVER\";\n\n// Package ID\nlet packageId = flow.get(\"package_id\") || \"PACKAGE_102\";\n\n// Event from Raspberry Pi\nlet event = msg.payload.toString().trim();\n\n\n// ==========================================\n// OUTPUTS\n// ==========================================\n\n// 1 → Telegram\n// 2 → Gmail\n// 3 → Dashboard\n// 4 → Status MQTT\n\nlet outTelegram = null;\nlet outGmail = null;\nlet outDashboard = null;\nlet outStatus = null;\n\n\n// ==========================================\n// AUTHORIZED DRIVER\n// ==========================================\n\nif (event === \"AUTHORIZED_DRIVER\") {\n\n    status = \"WAITING_FOR_PACKAGE\";\n\n    node.warn(\"Authorized driver detected.\");\n\n}\n\n\n// ==========================================\n// PACKAGE LOADED\n// ==========================================\n\nelse if (event === \"PACKAGE_LOADED\") {\n\n    status = \"IN_TRANSIT\";\n\n    node.warn(\"Package loaded successfully.\");\n\n}\n\n\n// ==========================================\n// DELIVERY STARTED\n// ==========================================\n\nelse if (event === \"DELIVERY_STARTED\") {\n\n    status = \"IN_TRANSIT\";\n\n    node.warn(\"Delivery started.\");\n\n    // Telegram notification\n    outTelegram = {\n        payload: {\n            chatId: \"1212440511\",\n            type: \"message\",\n            content:\n                \"🚚 Package \" +\n                packageId +\n                \" has started its delivery journey.\"\n        }\n    };\n}\n\n\n// ==========================================\n// DRIVER ARRIVED\n// ==========================================\n\nelse if (event === \"DRIVER_ARRIVED\") {\n\n    status = \"ARRIVED\";\n\n    node.warn(\"Driver arrived at destination.\");\n\n    // Telegram notification\n    outTelegram = {\n        payload: {\n            chatId: \"1212440511\",\n            type: \"message\",\n            content:\n                \"📦 Package \" +\n                packageId +\n                \" has arrived at the destination.\"\n        }\n    };\n}\n\n\n// ==========================================\n// DELIVERED\n// ==========================================\n\nelse if (event === \"DELIVERED\") {\n\n    status = \"DELIVERED\";\n\n    node.warn(\"Package delivered successfully.\");\n\n    // Telegram\n    outTelegram = {\n        payload: {\n            chatId: \"1212440511\",\n            type: \"message\",\n            content:\n                \"✅ Package \" +\n                packageId +\n                \" has been delivered successfully.\"\n        }\n    };\n}\n\n\n// ==========================================\n// UNAUTHORIZED ACCESS\n// ==========================================\n\nelse if (event === \"UNAUTHORIZED_ACCESS\") {\n\n    status = \"SECURITY_ALERT\";\n\n    node.warn(\"SECURITY ALERT: Unauthorized access.\");\n\n    // Gmail\n    outGmail = {\n        to: \"sherymegally@gmail.com\",\n        topic: \"CRITICAL SECURITY ALERT\",\n        payload:\n            \"Unauthorized access detected for package \" +\n            packageId +\n            \".\"\n    };\n}\n\n\n// ==========================================\n// MISSING PACKAGE\n// ==========================================\n\nelse if (event === \"MISSING_PACKAGE\") {\n\n    status = \"SECURITY_ALERT\";\n\n    node.warn(\"SECURITY ALERT: Package missing.\");\n\n    // Gmail\n    outGmail = {\n        to: \"sherymegally@gmail.com\",\n        topic: \"PACKAGE MISSING\",\n        payload:\n            \"Package \" +\n            packageId +\n            \" is missing.\"\n    };\n}\n\n\n// ==========================================\n// SAVE STATE\n// ==========================================\n\nglobal.set(\"packageStatus\", status);\n\n\n// ==========================================\n// DASHBOARD DATA\n// ==========================================\n\noutDashboard = {\n\n    payload: {\n\n        package_id: packageId,\n\n        event: event,\n\n        status: status,\n\n        timestamp: new Date().toLocaleString()\n\n    }\n\n};\n\n\n// ==========================================\n// STATUS MQTT\n// ==========================================\n\noutStatus = {\n\n    topic: \"delivery/status\",\n\n    payload: JSON.stringify({\n\n        package_id: packageId,\n\n        event: event,\n\n        status: status,\n\n        timestamp: new Date().toISOString()\n\n    })\n\n};\n\n\n// ==========================================\n// NODE-RED STATUS\n// ==========================================\n\nnode.status({\n\n    fill:\n        status === \"SECURITY_ALERT\"\n            ? \"red\"\n            : status === \"DELIVERED\"\n                ? \"green\"\n                : \"blue\",\n\n    shape: \"dot\",\n\n    text:\n        packageId +\n        \" → \" +\n        status\n\n});\n\n\n// ==========================================\n// RETURN 4 OUTPUTS\n// ==========================================\n//\n// 1 → Telegram\n// 2 → Gmail\n// 3 → Dashboard\n// 4 → MQTT status\n//\n\nreturn [\n\n    outTelegram,\n\n    outGmail,\n\n    outDashboard,\n\n    outStatus\n\n];\n\n",
+        "outputs": 4,
+        "timeout": 0,
+        "noerr": 0,
+        "initialize": "",
+        "finalize": "",
+        "libs": [],
+        "x": 510,
+        "y": 340,
+        "wires": [
+            [
+                "91aa8bfb4652f881"
+            ],
+            [
+                "0f411f15ce904f7b"
+            ],
+            [
+                "b7cdaf922aeb40f9"
+            ],
+            [
+                "3b9a515fe31306e5"
+            ]
+        ]
+    },
+    {
+        "id": "0f411f15ce904f7b",
+        "type": "e-mail",
+        "z": "dae92552c0cc9cde",
+        "server": "smtp.gmail.com",
+        "port": "465",
+        "authtype": "BASIC",
+        "saslformat": true,
+        "token": "oauth2Response.access_token",
+        "secure": true,
+        "tls": true,
+        "name": "sherymegally@gmail.com",
+        "dname": "mail",
+        "x": 770,
+        "y": 320,
+        "wires": []
+    },
+    {
+        "id": "91aa8bfb4652f881",
+        "type": "telegram sender",
+        "z": "dae92552c0cc9cde",
+        "name": "",
+        "bot": "5decbbaee148cfa0",
+        "haserroroutput": false,
+        "outputs": 1,
+        "x": 790,
+        "y": 280,
+        "wires": [
+            []
+        ]
+    },
+    {
+        "id": "3b9a515fe31306e5",
+        "type": "mqtt out",
+        "z": "dae92552c0cc9cde",
+        "name": "status",
+        "topic": "delivery/status",
+        "qos": "0",
+        "retain": "false",
+        "respTopic": "",
+        "contentType": "",
+        "userProps": "",
+        "correl": "",
+        "expiry": "",
+        "broker": "c7cc18de996064fd",
+        "x": 770,
+        "y": 440,
+        "wires": []
+    },
+    {
+        "id": "3113894241b45c7e",
+        "type": "ui_text",
+        "z": "dae92552c0cc9cde",
+        "group": "b7ab54859476c5c5",
+        "order": 7,
+        "width": 0,
+        "height": 0,
+        "name": "Last NFC",
+        "label": "Last NFC",
+        "format": "{{msg.payload}}",
+        "layout": "row-left",
+        "className": "",
+        "style": false,
+        "font": "",
+        "fontSize": 16,
+        "color": "#000000",
+        "x": 760,
+        "y": 160,
+        "wires": []
+    },
+    {
+        "id": "55439231a5670d74",
+        "type": "ui_text",
+        "z": "dae92552c0cc9cde",
+        "group": "b7ab54859476c5c5",
+        "order": 8,
+        "width": 0,
+        "height": 0,
+        "name": "Package Presence",
+        "label": "Package",
+        "format": "{{msg.payload}}",
+        "layout": "row-left",
+        "className": "",
+        "style": false,
+        "font": "",
+        "fontSize": 16,
+        "color": "#000000",
+        "x": 770,
+        "y": 240,
+        "wires": []
+    },
+    {
+        "id": "b7cdaf922aeb40f9",
+        "type": "ui_template",
+        "z": "dae92552c0cc9cde",
+        "group": "b7ab54859476c5c5",
+        "name": "Shipment Information",
+        "order": 9,
+        "width": 0,
+        "height": 0,
+        "format": "<div>\n    <h3>Shipment Information</h3>\n\n    <p><b>Package ID:</b> {{msg.payload.package_id}}</p>\n\n    <p><b>Status:</b> {{msg.payload.status}}</p>\n\n    <p><b>Last Event:</b> {{msg.payload.event}}</p>\n\n    <p><b>Time:</b> {{msg.payload.timestamp}}</p>\n</div>",
+        "storeOutMessages": true,
+        "fwdInMessages": true,
+        "resendOnRefresh": true,
+        "templateScope": "local",
+        "className": "",
+        "x": 800,
+        "y": 380,
+        "wires": [
+            []
+        ]
+    },
+    {
+        "id": "af8f6b309fd1e6f8",
+        "type": "inject",
+        "z": "dae92552c0cc9cde",
+        "name": "",
+        "props": [
+            {
+                "p": "payload"
+            },
+            {
+                "p": "topic",
+                "vt": "str"
+            }
+        ],
+        "repeat": "",
+        "crontab": "",
+        "once": false,
+        "onceDelay": 0.1,
+        "topic": "",
+        "payload": "7378BD02",
+        "payloadType": "str",
+        "x": 480,
+        "y": 40,
+        "wires": [
+            [
+                "463396bfb6c89459"
+            ]
+        ]
+    },
+    {
+        "id": "b6f6673d72467116",
+        "type": "inject",
+        "z": "dae92552c0cc9cde",
+        "name": "",
+        "props": [
+            {
+                "p": "payload"
+            },
+            {
+                "p": "topic",
+                "vt": "str"
+            }
+        ],
+        "repeat": "",
+        "crontab": "",
+        "once": false,
+        "onceDelay": 0.1,
+        "topic": "",
+        "payload": "B359B834",
+        "payloadType": "str",
+        "x": 280,
+        "y": 40,
+        "wires": [
+            [
+                "463396bfb6c89459"
+            ]
+        ]
+    },
+    {
+        "id": "25f507282a8798e7",
+        "type": "inject",
+        "z": "dae92552c0cc9cde",
+        "name": "",
+        "props": [
+            {
+                "p": "payload"
+            },
+            {
+                "p": "topic",
+                "vt": "str"
+            }
+        ],
+        "repeat": "",
+        "crontab": "",
+        "once": false,
+        "onceDelay": 0.1,
+        "topic": "",
+        "payload": "true",
+        "payloadType": "str",
+        "x": 130,
+        "y": 200,
+        "wires": [
+            [
+                "33910e200a01e640"
+            ]
+        ]
+    },
+    {
+        "id": "4a6b0ef68092a9b6",
+        "type": "inject",
+        "z": "dae92552c0cc9cde",
+        "name": "",
+        "props": [
+            {
+                "p": "payload"
+            },
+            {
+                "p": "topic",
+                "vt": "str"
+            }
+        ],
+        "repeat": "",
+        "crontab": "",
+        "once": false,
+        "onceDelay": 0.1,
+        "topic": "",
+        "payload": "fulse",
+        "payloadType": "str",
+        "x": 130,
+        "y": 300,
+        "wires": [
+            [
+                "33910e200a01e640"
+            ]
+        ]
+    },
+    {
+        "id": "29f35dd7c22c59c3",
+        "type": "inject",
+        "z": "dae92552c0cc9cde",
+        "name": "",
+        "props": [
+            {
+                "p": "payload"
+            },
+            {
+                "p": "topic",
+                "vt": "str"
+            }
+        ],
+        "repeat": "",
+        "crontab": "",
+        "once": false,
+        "onceDelay": 0.1,
+        "topic": "",
+        "payload": "AUTHORIZED_DRIVER",
+        "payloadType": "str",
+        "x": 190,
+        "y": 400,
+        "wires": [
+            [
+                "2fd1c5e6893333ba"
+            ]
+        ]
+    },
+    {
+        "id": "10cbe82f0cb50634",
+        "type": "inject",
+        "z": "dae92552c0cc9cde",
+        "name": "",
+        "props": [
+            {
+                "p": "payload"
+            },
+            {
+                "p": "topic",
+                "vt": "str"
+            }
+        ],
+        "repeat": "",
+        "crontab": "",
+        "once": false,
+        "onceDelay": 0.1,
+        "topic": "",
+        "payload": "PACKAGE_LOADED",
+        "payloadType": "str",
+        "x": 260,
+        "y": 480,
+        "wires": [
+            [
+                "2fd1c5e6893333ba"
+            ]
+        ]
+    },
+    {
+        "id": "f463f87f615f4f37",
+        "type": "inject",
+        "z": "dae92552c0cc9cde",
+        "name": "",
+        "props": [
+            {
+                "p": "payload"
+            },
+            {
+                "p": "topic",
+                "vt": "str"
+            }
+        ],
+        "repeat": "",
+        "crontab": "",
+        "once": false,
+        "onceDelay": 0.1,
+        "topic": "",
+        "payload": "DELIVERY_STARTED",
+        "payloadType": "str",
+        "x": 540,
+        "y": 500,
+        "wires": [
+            [
+                "2fd1c5e6893333ba"
+            ]
+        ]
+    },
+    {
+        "id": "6f947b49699c936c",
+        "type": "inject",
+        "z": "dae92552c0cc9cde",
+        "name": "",
+        "props": [
+            {
+                "p": "payload"
+            },
+            {
+                "p": "topic",
+                "vt": "str"
+            }
+        ],
+        "repeat": "",
+        "crontab": "",
+        "once": false,
+        "onceDelay": 0.1,
+        "topic": "",
+        "payload": "DRIVER_ARRIVED",
+        "payloadType": "str",
+        "x": 510,
+        "y": 420,
+        "wires": [
+            [
+                "2fd1c5e6893333ba"
+            ]
+        ]
+    },
+    {
+        "id": "c50ac7417a40fdb6",
+        "type": "inject",
+        "z": "dae92552c0cc9cde",
+        "name": "",
+        "props": [
+            {
+                "p": "payload"
+            },
+            {
+                "p": "topic",
+                "vt": "str"
+            }
+        ],
+        "repeat": "",
+        "crontab": "",
+        "once": false,
+        "onceDelay": 0.1,
+        "topic": "",
+        "payload": "DELIVERED",
+        "payloadType": "str",
+        "x": 370,
+        "y": 540,
+        "wires": [
+            [
+                "2fd1c5e6893333ba"
+            ]
+        ]
+    },
+    {
+        "id": "35adac64658b28ab",
+        "type": "inject",
+        "z": "dae92552c0cc9cde",
+        "name": "",
+        "props": [
+            {
+                "p": "payload"
+            },
+            {
+                "p": "topic",
+                "vt": "str"
+            }
+        ],
+        "repeat": "",
+        "crontab": "",
+        "once": false,
+        "onceDelay": 0.1,
+        "topic": "",
+        "payload": "UNAUTHORIZED_ACCESS",
+        "payloadType": "str",
+        "x": 220,
+        "y": 600,
+        "wires": [
+            [
+                "2fd1c5e6893333ba"
+            ]
+        ]
+    },
+    {
+        "id": "19e6899fff2ceb08",
+        "type": "inject",
+        "z": "dae92552c0cc9cde",
+        "name": "",
+        "props": [
+            {
+                "p": "payload"
+            },
+            {
+                "p": "topic",
+                "vt": "str"
+            }
+        ],
+        "repeat": "",
+        "crontab": "",
+        "once": false,
+        "onceDelay": 0.1,
+        "topic": "",
+        "payload": "MISSING_PACKAGE",
+        "payloadType": "str",
+        "x": 520,
+        "y": 620,
+        "wires": [
+            [
+                "2fd1c5e6893333ba"
+            ]
+        ]
+    },
+    {
+        "id": "c7cc18de996064fd",
+        "type": "mqtt-broker",
+        "name": "mqtt",
+        "broker": "f7559e3e38f94eb7bfc2906b6be26633.s1.eu.hivemq.cloud",
+        "port": "8883",
+        "tls": "",
+        "clientid": "sherry",
+        "autoConnect": true,
+        "usetls": true,
+        "protocolVersion": 4,
+        "keepalive": 60,
+        "cleansession": true,
+        "autoUnsubscribe": true,
+        "birthTopic": "",
+        "birthQos": "0",
+        "birthRetain": "false",
+        "birthPayload": "",
+        "birthMsg": {},
+        "closeTopic": "",
+        "closeQos": "0",
+        "closeRetain": "false",
+        "closePayload": "",
+        "closeMsg": {},
+        "willTopic": "",
+        "willQos": "0",
+        "willRetain": "false",
+        "willPayload": "",
+        "willMsg": {},
+        "userProps": "",
+        "sessionExpiry": ""
+    },
+    {
+        "id": "5decbbaee148cfa0",
+        "type": "telegram bot",
+        "botname": "Sherry_sic_projects",
+        "usernames": "",
+        "chatids": "1212440511",
+        "baseapiurl": "",
+        "testenvironment": false,
+        "updatemode": "polling",
+        "pollinterval": 300,
+        "usesocks": false,
+        "sockshost": "",
+        "socksprotocol": "socks5",
+        "socksport": 6667,
+        "socksusername": "anonymous",
+        "sockspassword": "",
+        "bothost": "",
+        "botpath": "",
+        "localbothost": "0.0.0.0",
+        "localbotport": 8443,
+        "publicbotport": 8443,
+        "privatekey": "",
+        "certificate": "",
+        "useselfsignedcertificate": false,
+        "sslterminated": false,
+        "verboselogging": false
+    },
+    {
+        "id": "b7ab54859476c5c5",
+        "type": "ui_group",
+        "name": "Dashboard",
+        "tab": "4bc55283ec21ff50",
+        "order": 1,
+        "disp": true,
+        "width": "8",
+        "collapse": false,
+        "className": ""
+    },
+    {
+        "id": "4bc55283ec21ff50",
+        "type": "ui_tab",
+        "name": "Home",
+        "icon": "dashboard",
+        "disabled": false,
+        "hidden": false
+    },
+    {
+        "id": "7c88a2382891fa50",
+        "type": "global-config",
+        "env": [],
+        "modules": {
+            "node-red-node-email": "5.2.5",
+            "node-red-contrib-telegrambot": "19.0.2",
+            "node-red-dashboard": "3.6.6"
+        }
+    }
+]
