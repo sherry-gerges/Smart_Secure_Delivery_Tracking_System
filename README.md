@@ -484,11 +484,11 @@ The Node-RED project uses:
 Smart-Secure-Delivery-Tracking-System/
 │
 ├── raspberry_pi/
-│   ├── delivery_system.py
+│   ├── main.py
 │   └── libraries.txt
 │
 ├── node_red/
-│   ├── dashboard_flow.json
+│   ├── the_whole_flow.json
 │   └── location_flow.json
 │
 ├── docs/
